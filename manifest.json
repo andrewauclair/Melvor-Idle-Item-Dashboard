@@ -1,7 +1,7 @@
 {
-  "namespace":  "miid_dashboard",
-  "name": "Melvor Idle Item Dashboard (MIID)",
+  "namespace":  "item_dashboard",
+  "name": "Item Dashboard",
   "description": "Track -everything- over time!",
-  "id": "melvor_idle_item_dashboard_miid",
+  "id": "item_dashboard",
   "setup": "setup.js"
 }

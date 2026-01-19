@@ -12,7 +12,7 @@ const manifest = JSON.parse(fs.readFileSync('manifest.json').toString());
 manifest.version = version
 fs.writeFileSync('build/manifest.json', JSON.stringify(manifest, null, 4));
 
-const zipName = path.join(__dirname, 'dist', `MIID-v${version}.zip`);
+const zipName = path.join(__dirname, 'dist', `ItemDashboard-v${version}.zip`);
 console.log(zipName)
 fs.mkdirSync(path.dirname(zipName), { recursive: true });
 
@@ -30,3 +30,8 @@ exports.archive = archive;
 
 console.log(version);
 console.log(new Date());
+
+/*
+npx tsc
+node build.js
+*/

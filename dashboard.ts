@@ -85,7 +85,8 @@ class Snapshot {
 
   EffectiveHealth() {
     let foodObj = game.combat.player.food.currentSlot;
-    let calcFoodQty = foodObj.quantity * (1 + game.combat.player.modifiers.increasedChanceToPreserveFood);
+    let calcFoodQty = foodObj.quantity * (1 + game.combat.player.modifiers.foodPreservationChance);
+    
     let healValue = Math.floor(game.combat.player.getFoodHealing(foodObj.item) * this.AutoEatEfficiency() / 100);
     let hp = game.combat.player.hitpoints;
     if (calcFoodQty == 0)
@@ -95,8 +96,7 @@ class Snapshot {
   }
 
   AutoEatEfficiency() {
-    const percent = game.combat.player.modifiers.increasedAutoEatEfficiency - game.combat.player.modifiers.decreasedAutoEatEfficiency;
-    return Math.max(percent, 1);
+    return Math.max(game.combat.player.modifiers.autoEatEfficiency, 1);
   }
 
   TotalKills() {
@@ -111,10 +111,10 @@ class Snapshot {
     }
 
     /**
-     * Returns the quanity of the item in the slot, or the item charges for gloves
+     * Returns the quantity of the item in the slot, or the item charges for gloves
      * @param slot
      */
-    function getQuantity(slot: BankItem | EquipSlot) {
+    function getQuantity(slot: BankItem | EquippedItem) {
       const item = slot.item;
       if (IsEquipmentItem(item) && IsChargeGloves(item)) {
         return game.itemCharges.getCharges(item);
@@ -134,7 +134,7 @@ class Snapshot {
 
     // check equipment sets, ignore golbin loadout
     for (let equipmentSet of game.combat.player.equipmentSets) {
-      for (let equipmentSlot of equipmentSet.equipment.slotArray) {
+      for (let equipmentSlot of equipmentSet.equipment.equippedArray) {
         let gearID = equipmentSlot.item.id;
         ensureItemExists(bulk, gearID);
         let quantity = getQuantity(equipmentSlot);
@@ -183,10 +183,15 @@ class Snapshot {
       if (skill.hasMastery) {
         let masterySkill = game.masterySkills.getObjectByID(skill.id);
         if (masterySkill) {
-          skillDiff.Pool = masterySkill.masteryPoolXP;
           skillDiff.Mastery = masterySkill.totalMasteryXP;
-          skillDiff.PoolMax = masterySkill.masteryPoolCap;
-          skillDiff.PoolPercent = masterySkill.masteryPoolXP / masterySkill.masteryPoolCap;
+
+          const realm = game.realmManager.currentSidebarRealm;
+
+          if (realm) {
+            skillDiff.Pool = masterySkill.getMasteryPoolXP(realm);
+            skillDiff.PoolMax = masterySkill.getMasteryPoolCap(realm);
+            skillDiff.PoolPercent = skillDiff.Pool / skillDiff.PoolMax;
+          }
         }
       }
       skills[skill.id] = skillDiff;
@@ -489,19 +494,20 @@ class ItemDashboard {
       this.resDiff.ItemRate[itemID] = change / rateFactor;
 
       // register change
-      !silent && console.log(`${itemData.name} changed by ${this.resDiff.ItemRate[itemID]} / ${this.resDiff.IntervalLabel}`);
+      !silent && console.log(`${itemData.name} changed by ${change}, new rate (rate factor: ${rateFactor}) is ${this.resDiff.ItemRate[itemID]} / ${this.resDiff.IntervalLabel}, sells for: ${itemData.sellsFor.quantity}`);
 
       let worthChange;
       const glovePurchaseData = GetGlovesPurchase(itemData);
       if (glovePurchaseData) {
-        const initialCost = glovePurchaseData.costs.gp as GloveCost;
+        const gp = glovePurchaseData.costs.currencies.find(value => value.currency.name === "gp");
+        const initialCost = gp as GloveCost;
         // This applies any cost reduction
         const discountedCost = game.shop.getCurrencyCost(initialCost, 1, 0);
         const chargesAdded = (glovePurchaseData.contains.itemCharges as EquipmentQuantity).quantity;
         worthChange = (change / chargesAdded) * discountedCost;
       }
       else {
-        worthChange = change * itemData.sellsFor;
+        worthChange = change * itemData.sellsFor.quantity;
       }
 
       this.resDiff.WorthChange[itemID] = worthChange;
@@ -831,7 +837,7 @@ class ItemDashboard {
       if (poolChange) {
         until100 = ((currentSkill.PoolMax - currentSkill.Pool) / (poolChange / this.resDiff.TimePassed));
       }
-      const underLevelCap = skillData.virtualLevel < skillData.levelCap;
+      const underLevelCap = skillData.virtualLevel < skillData.maxLevelCap;
       const hasPoolChange = hasMastery && this.itemTracker.curr.Skills[skillID].PoolPercent < 100 && poolPercRate !== 0;
 
       if (xpChange == 0 || (!underLevelCap && !hasPoolChange)) {
@@ -1080,5 +1086,5 @@ function IsEquipmentItem(item: AnyItem): item is EquipmentItem {
 }
 
 function IsChargeGloves(item: EquipmentItem) {
-  return game.itemCharges.itemHasCharge(item) && item.validSlots.includes("Gloves");
+  return game.itemCharges.itemHasCharge(item) && item.validSlots.some(slot => slot.emptyName === "Gloves");
 }
